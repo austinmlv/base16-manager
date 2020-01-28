@@ -194,6 +194,7 @@ list_themes() {
 # print currently supported templates
 list_support() {
   echo "0xdec/base16-rofi"
+  echo "aaron-williamson/base16-alacritty"
   echo "chriskempson/base16-shell"
   echo "chriskempson/base16-vim"
   echo "chriskempson/base16-xresources"
@@ -303,6 +304,9 @@ set_theme() {
         ;;
       "rkubosz/base16-sway")
         set_by_copy "$package" "$theme" "$HOME/.config/sway/colorscheme" "config"
+        ;;
+      "aaron-williamson/base16-alacritty")
+        set_alacritty "$package" "$theme" "$HOME/.config/alacritty/alacritty.yml"
         ;;
       *)
         err "Package $package is not (yet) supported."
@@ -587,6 +591,52 @@ set_xresources() {
 
     xrdb -load "$xres" # reload colors
   fi
+}
+
+set_alacritty() {
+# set_alacritty() assumes that any existing color settings appear last in
+# alacritty.yml and begin with: '# Base16'. Any existing color settings will be
+# removed prior to appending the new theme.
+  local package=$1
+  local theme=$2
+  local config=$3
+  local config_tmp
+  local template
+  local base16_begin
+
+  # get template and check for nonexistent templates
+  if ls "$DATA_PATH/$package"/*/"base16-$theme."* &>/dev/null; then
+    template=$(ls "$DATA_PATH/$package"/*/"base16-$theme."* )
+  else
+    err "$package: theme $theme not found."
+    return 1
+  fi
+  # create alacritty.yml if it doesn't exist
+  if [[ ! -f "$config" ]]; then
+    mkdir -p "$(dirname "$config")"
+    cp "$template" "$config"
+    return
+  fi
+
+  # create a temporary config copy
+  config_tmp=/tmp/base16_manager_$(basename "$config")
+  cp "$config" "$config_tmp"
+
+  # grep for the line beginning '# Base16' and grab the line number if there's
+  # a match
+  base16_begin=$(grep -ne '^# [Bb]ase16' "$config_tmp" | cut -d ':' -f 1)
+  if [[ -n "$base16_begin" ]]; then
+    # existing base16 theme found, remove lines starting from 'base16_begin' to
+    # EOF:
+    sed -i -e "$base16_begin,$ d" "$config_tmp"
+  fi
+
+  # append color scheme
+  cat "$template" >> "$config_tmp"
+  # copy temporary config to the right place
+  cp "$config_tmp" "$config"
+  # remove temporary config
+  rm "$config_tmp"
 }
 
 main() {
